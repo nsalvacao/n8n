@@ -1,0 +1,9 @@
+sequenceDiagram
+    participant U as User
+    participant S as Server
+    participant R as Runner
+    U->>S: trigger workflow
+    S->>R: queue execution
+    R->>R: run nodes
+    R->>S: report result
+    S->>U: response
