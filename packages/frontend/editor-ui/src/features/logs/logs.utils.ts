@@ -10,6 +10,8 @@ import {
 	type Workflow,
 	type INode,
 	type ISourceData,
+	parseErrorMetadata,
+	type RelatedExecution,
 } from 'n8n-workflow';
 import type { LogEntry, LogEntrySelection, LogTreeCreationContext } from './logs.types';
 import { isProxy, isReactive, isRef, toRaw } from 'vue';
@@ -70,13 +72,13 @@ function getChildNodes(
 	runIndex: number | undefined,
 	context: LogTreeCreationContext,
 ) {
-	if (hasSubExecution(treeNode)) {
-		const workflowId = treeNode.runData?.metadata?.subExecution?.workflowId;
-		const executionId = treeNode.runData?.metadata?.subExecution?.executionId;
-		const workflow = workflowId ? context.workflows[workflowId] : undefined;
-		const subWorkflowRunData = executionId ? context.subWorkflowData[executionId] : undefined;
+	const subExecutionLocator = findSubExecutionLocator(treeNode);
 
-		if (!workflow || !subWorkflowRunData || !executionId) {
+	if (subExecutionLocator !== undefined) {
+		const workflow = context.workflows[subExecutionLocator.workflowId];
+		const subWorkflowRunData = context.subWorkflowData[subExecutionLocator.executionId];
+
+		if (!workflow || !subWorkflowRunData) {
 			return [];
 		}
 
@@ -85,14 +87,13 @@ function getChildNodes(
 			parent: treeNode,
 			depth: context.depth + 1,
 			workflow,
-			executionId,
+			executionId: subExecutionLocator.executionId,
 			data: subWorkflowRunData,
 		});
 	}
 
 	// Get the first level of children
 	const connectedSubNodes = context.workflow.getParentNodes(node.name, 'ALL_NON_MAIN', 1);
-	const isExecutionRoot = !isSubNodeLog(treeNode);
 
 	function isMatchedSource(source: ISourceData | null): boolean {
 		return (
@@ -104,13 +105,12 @@ function getChildNodes(
 
 	return connectedSubNodes.flatMap((subNodeName) =>
 		(context.data.resultData.runData[subNodeName] ?? []).flatMap((t, index) => {
-			// At root depth, filter out node executions that weren't triggered by this node
+			// Filter out node executions that weren't triggered by this node
 			// This prevents showing duplicate executions when a sub-node is connected to multiple parents
 			// Only filter nodes that have source information with valid previousNode references
-			const isMatched =
-				isExecutionRoot && t.source.some((source) => source !== null)
-					? t.source.some(isMatchedSource)
-					: runIndex === undefined || index === runIndex;
+			const isMatched = t.source.some((source) => source !== null)
+				? t.source.some(isMatchedSource)
+				: runIndex === undefined || index === runIndex;
 
 			if (!isMatched) {
 				return [];
@@ -434,7 +434,17 @@ export function mergeStartData(
 }
 
 export function hasSubExecution(entry: LogEntry): boolean {
-	return !!entry.runData?.metadata?.subExecution;
+	return findSubExecutionLocator(entry) !== undefined;
+}
+
+export function findSubExecutionLocator(entry: LogEntry): RelatedExecution | undefined {
+	const metadata = entry.runData?.metadata?.subExecution;
+
+	if (metadata) {
+		return { workflowId: metadata.workflowId, executionId: metadata.executionId };
+	}
+
+	return parseErrorMetadata(entry.runData?.error)?.subExecution;
 }
 
 export function getDefaultCollapsedEntries(entries: LogEntry[]): Record<string, boolean> {
