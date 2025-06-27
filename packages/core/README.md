@@ -11,3 +11,5 @@ npm install n8n-core
 ## License
 
 You can find the license information [here](https://github.com/n8n-io/n8n/blob/master/README.md#license)
+
+See [Architecture docs](../../docs/architecture/overview.md) for repository structure.

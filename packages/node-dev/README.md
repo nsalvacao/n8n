@@ -216,3 +216,5 @@ All properties are optional. However, most only work when the node-property is o
 ## License
 
 You can find the license information [here](https://github.com/n8n-io/n8n/blob/master/README.md#license)
+
+See [Architecture docs](../../docs/architecture/overview.md) for repository structure.
